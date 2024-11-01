@@ -3,14 +3,10 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
-from dash import Dash, dcc, html
+from dash import Dash, dcc, html, Input, Output, State
 import dash_bootstrap_components as dbc
-from dash import Dash, dcc, html, Input, Output, State  # Asegúrate de incluir Output
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Dash, dcc, html
-import dash_bootstrap_components as dbc
-
 
 # Cargar la base de datos
 file_path = 'Bank.csv'
@@ -34,11 +30,21 @@ le_education = LabelEncoder()
 le_contact = LabelEncoder()
 le_poutcome = LabelEncoder()
 
+# Aplicar transformaciones y guardar mapeos
 df['job'] = le_job.fit_transform(df['job'])
 df['marital'] = le_marital.fit_transform(df['marital'])
 df['education'] = le_education.fit_transform(df['education'])
 df['contact'] = le_contact.fit_transform(df['contact'])
 df['poutcome'] = le_poutcome.fit_transform(df['poutcome'])
+
+category_mappings = {
+    'job': dict(enumerate(le_job.classes_)),
+    'marital': dict(enumerate(le_marital.classes_)),
+    'education': dict(enumerate(le_education.classes_)),
+    'contact': dict(enumerate(le_contact.classes_)),
+    'poutcome': dict(enumerate(le_poutcome.classes_))
+}
+
 
 # Variables para el Modelo 1
 X1 = df[['age', 'job', 'marital', 'education', 'balance', 'loan', 'housing']]
@@ -386,7 +392,19 @@ def update_kpis(selected_month):
 )
 def update_heatmap(var1, var2):
     if var1 and var2 and var1 != var2:
-        heatmap_data = pd.crosstab(df[var1], df[var2])
+        # Crear una copia solo si es necesario
+        heatmap_df = df.copy()
+        
+        # Mapear etiquetas para variables categóricas
+        if var1 in category_mappings:
+            heatmap_df[var1] = heatmap_df[var1].map(category_mappings[var1])
+        if var2 in category_mappings:
+            heatmap_df[var2] = heatmap_df[var2].map(category_mappings[var2])
+        
+        # Crear la tabla de frecuencia cruzada
+        heatmap_data = pd.crosstab(heatmap_df[var1], heatmap_df[var2])
+        
+        # Crear el heatmap con Plotly
         fig = px.imshow(
             heatmap_data,
             labels=dict(x=var2.capitalize(), y=var1.capitalize(), color="Frecuencia"),
@@ -406,10 +424,22 @@ def update_heatmap(var1, var2):
 )
 def update_bar_chart(var, selected_month):
     if var:
+        # Filtrar el DataFrame según el mes seleccionado
         df_filtered = df if selected_month is None else df[df['month'] == selected_month]
-        bar_data = pd.crosstab(df_filtered[var], df_filtered['y'])
+        
+        # Crear una copia solo si es necesario para mapear etiquetas categóricas
+        bar_chart_df = df_filtered.copy()
+        
+        # Mapear etiquetas si la variable es categórica
+        if var in category_mappings:
+            bar_chart_df[var] = bar_chart_df[var].map(category_mappings[var])
+        
+        # Crear la tabla de frecuencia cruzada
+        bar_data = pd.crosstab(bar_chart_df[var], bar_chart_df['y'])
         bar_data.columns = ['No Exitoso', 'Exitoso']
         bar_data = bar_data.reset_index()
+        
+        # Crear la gráfica de barras con Plotly
         fig = px.bar(
             bar_data,
             x=var,
